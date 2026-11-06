@@ -1,0 +1,9 @@
+{
+  "name": "anatonix-frontend",
+  "private": true,
+  "type": "module",
+  "description": "Browser-side computer-vision component for the Anatonix monitoring UI",
+  "scripts": {
+    "test": "node --test tests/"
+  }
+}

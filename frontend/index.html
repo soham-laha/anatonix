@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Anatonix · Live monitoring</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="anx-root" id="anxRoot" data-theme="dark" data-density="comfortable">
+
+    <header class="anx-header">
+      <div class="anx-brand">
+        <div class="anx-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+            <path d="M3 12h3.2l1.6-4.2 2.6 9 2.2-6.4 1.7 3.6H21" />
+            <circle cx="12" cy="3.2" r="1.2" fill="currentColor" stroke="none" />
+          </svg>
+        </div>
+        <div class="anx-brand-text">
+          <span class="anx-brand-title">Anatonix</span>
+          <span class="anx-brand-sub">Live monitoring engine</span>
+        </div>
+      </div>
+
+      <div class="anx-header-chips">
+        <span class="chip is-idle" id="chipState">
+          <span class="dot"></span><span id="chipStateText">Standby</span>
+        </span>
+        <span class="chip" id="chipFps" title="Inference frames per second">
+          <i class="fa-solid fa-gauge-high"></i><b id="fpsValue">--</b>fps
+        </span>
+        <span class="chip" id="chipConfidence" title="Mean landmark visibility">
+          <i class="fa-solid fa-signal"></i><b id="confValue">--</b>
+        </span>
+        <span class="chip" id="chipSession" title="Current session duration">
+          <i class="fa-regular fa-clock"></i><b id="sessionTimer">00:00:00</b>
+        </span>
+        <button class="btn btn-sm" id="btnAudio" type="button" title="Toggle spoken posture alerts">
+          <i class="fa-solid fa-volume-xmark"></i><span id="audioLabel">Audio off</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="alert-banner" id="alertBanner" hidden>
+      <i class="fa-solid fa-triangle-exclamation icon"></i>
+      <div class="body">
+        <div class="title" id="alertTitle">Forward lean detected</div>
+        <div class="detail" id="alertDetail"></div>
+      </div>
+      <span class="stamp" id="alertStamp"></span>
+      <button class="dismiss" id="alertDismiss" type="button" aria-label="Dismiss alert">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="anx-grid">
+      <div class="anx-col">
+
+        <section class="card" aria-label="Camera feed">
+          <div class="card-head">
+            <span class="card-title"><i class="fa-solid fa-video"></i>Optical feed</span>
+            <span class="card-note" id="cameraLabel">Camera idle</span>
+          </div>
+
+          <div class="stage" id="stage">
+            <video id="videoFeed" playsinline muted autoplay></video>
+            <canvas id="poseCanvas"></canvas>
+
+            <div class="stage-hud" aria-hidden="true">
+              <div class="quadrant q-tl"></div>
+              <div class="quadrant q-tr"></div>
+              <div class="quadrant q-bl"></div>
+              <div class="quadrant q-br"></div>
+              <div class="posture-flag" id="postureFlag">Standby</div>
+              <div class="hud-badge top-left">LEAN <span class="val" id="hudLean">--</span></div>
+              <div class="hud-badge top-right">TILT <span class="val" id="hudTilt">--</span></div>
+              <div class="hud-badge bottom-left">CONF <span class="val" id="hudConf">--</span></div>
+              <div class="hud-badge bottom-right" title="Inference latency"><span id="hudLatency">--</span> ms</div>
+            </div>
+
+            <div class="standby" id="standby">
+              <div class="standby-inner">
+                <div class="standby-icon"><i class="fa-solid fa-camera-retro"></i></div>
+                <h3>Camera standby</h3>
+                <p>Anatonix analyses posture and blink patterns inside this browser tab.
+                   Frames are never uploaded, stored or sent to a server.</p>
+                <button class="btn btn-primary" id="btnInit" type="button">
+                  <i class="fa-solid fa-power-off"></i> Initialize camera
+                </button>
+                <div class="init-progress" id="initProgress"></div>
+                <p id="cameraError" hidden style="color:var(--anx-critical)"></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-backdrop is-hidden" id="calibModal">
+            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="calibTitle">
+              <h3 id="calibTitle">Calibrate baseline</h3>
+              <p class="lede">Adopt the posture you want Anatonix to treat as neutral, then hold still for
+                about three seconds while the baseline is captured frame by frame.</p>
+              <ol>
+                <li>Sit upright with your feet flat and your eyes level with the screen.</li>
+                <li>Keep both shoulders inside the frame.</li>
+                <li>Relax your arms and hold still until the progress bar completes.</li>
+              </ol>
+              <div class="progress-block">
+                <div class="progress-line"><span id="calibProgressBar"></span></div>
+                <div class="progress-meta">
+                  <span id="calibProgressText">0%</span>
+                  <span id="calibFramesText">0 frames</span>
+                </div>
+              </div>
+              <div class="actions">
+                <button class="btn btn-sm" id="btnCalibCancel" type="button">Cancel</button>
+                <button class="btn btn-sm btn-primary" id="btnCalibStart" type="button">Start capture</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="control-bar">
+            <button class="btn btn-sm" id="btnPause" type="button" disabled>
+              <i class="fa-solid fa-pause"></i><span id="pauseLabel">Pause</span>
+            </button>
+            <button class="btn btn-sm btn-danger" id="btnStop" type="button" disabled>
+              <i class="fa-solid fa-stop"></i> Stop
+            </button>
+            <span class="spacer"></span>
+            <span class="hint">Press C to calibrate</span>
+            <button class="btn btn-sm" id="btnCalibrate" type="button" disabled>
+              <i class="fa-solid fa-crosshairs"></i> Calibrate
+            </button>
+
+          </div>
+        </section>
+
+        <section class="card" aria-label="Live telemetry chart">
+          <div class="card-head">
+            <span class="card-title"><i class="fa-solid fa-chart-line"></i>Live telemetry · 60 s</span>
+            <div class="chart-legend">
+              <span><i style="background:var(--anx-accent)"></i>Lean</span>
+              <span><i style="background:var(--anx-warning)"></i>Tilt</span>
+              <span><i style="background:var(--anx-purple)"></i>EAR</span>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="chartCanvas"></canvas>
+          </div>
+        </section>
+      </div>
+
+      <div class="anx-col anx-col-side">
+
+        <section class="card" aria-label="Ocular telemetry">
+          <div class="card-head">
+            <span class="card-title"><i class="fa-solid fa-eye"></i>Ocular telemetry</span>
+            <span class="eye-state-pill" id="eyeState">No data</span>
+          </div>
+          <div class="ocular-window">
+            <canvas id="eyeCanvas" width="360" height="150"></canvas>
+            <div class="ocular-reticle" aria-hidden="true">
+              <span class="corner c1"></span><span class="corner c2"></span>
+              <span class="corner c3"></span><span class="corner c4"></span>
+            </div>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-tile">
+              <span class="label">EAR</span>
+              <div class="value is-purple" id="earValue">--</div>
+            </div>
+            <div class="metric-tile">
+              <span class="label">Blinks</span>
+              <div class="value" id="blinkCount">0</div>
+            </div>
+            <div class="metric-tile">
+              <span class="label">BPM</span>
+              <div class="value is-accent" id="bpmValue">0</div>
+            </div>
+          </div>
+          <div class="metric-grid" style="grid-template-columns:1fr">
+            <div class="metric-tile">
+              <span class="label">Blink rate indicator</span>
+              <div class="value" id="blinkIndicator" style="font-size:13px">No data</div>
+            </div>
+          </div>
+          <div class="blink-activity" id="blinkActivity" title="Recent blink activity (last 12 events)"></div>
+          <p class="card-note" style="margin-top:8px;line-height:1.5">
+            Configurable monitoring category only — blink frequency alone cannot diagnose
+            dry-eye disease or any other condition.
+          </p>
+        </section>
+
+        <section class="card" aria-label="Biomechanical symmetry">
+          <div class="card-head">
+            <span class="card-title"><i class="fa-solid fa-ruler-combined"></i>Biomechanical symmetry</span>
+            <span class="card-note" id="postureStateNote">--</span>
+          </div>
+          <div class="gauge-list">
+            <div class="gauge">
+              <span class="name"><i class="fa-solid fa-angles-down"></i>Forward lean</span>
+              <span class="reading is-idle" id="leanReading">--</span>
+              <div class="bar"><span id="leanBar"></span></div>
+            </div>
+            <div class="gauge">
+              <span class="name"><i class="fa-solid fa-arrows-left-right"></i>Shoulder tilt</span>
+              <span class="reading is-idle" id="tiltReading">--</span>
+              <div class="bar"><span id="tiltBar"></span></div>
+            </div>
+            <div class="gauge">
+              <span class="name"><i class="fa-solid fa-magnifying-glass-plus"></i>Proximity ratio</span>
+              <span class="reading is-idle" id="proxReading">--</span>
+              <div class="bar"><span id="proxBar"></span></div>
+            </div>
+            <div class="gauge">
+              <span class="name"><i class="fa-solid fa-bell"></i>Posture alerts</span>
+              <span class="reading is-idle" id="alertReading">0</span>
+              <div class="bar"><span id="alertBar" style="width:0%"></span></div>
+            </div>
+          </div>
+
+          <div class="load-strip">
+            <div class="head">
+              <span>Illustrative neck-load estimate</span>
+              <span id="loadBand">--</span>
+            </div>
+            <div class="value"><span id="loadValue">--</span>
+              <span style="font-size:11px;color:var(--anx-text-muted)">lbs</span>
+            </div>
+            <div class="foot">Simplified educational mapping (10 / 20 / 32 / 49 lbs) — not a
+              measurement of spinal force or cervical loading.</div>
+          </div>
+        </section>
+
+        <section class="card" aria-label="Camera quality">
+          <div class="card-head">
+            <span class="card-title"><i class="fa-solid fa-sliders"></i>Camera quality</span>
+            <span class="card-note" id="qualityScore">--</span>
+          </div>
+          <div class="quality-list" id="qualityList"></div>
+          <div class="quality-hint is-empty" id="qualityHint"></div>
+        </section>
+
+        <section class="card" aria-label="Baseline calibration">
+          <div class="card-head">
+            <span class="card-title"><i class="fa-solid fa-crosshairs"></i>Baseline calibration</span>
+          </div>
+          <div class="calib-body">
+            <div class="calib-row"><span>Status</span><span class="val" id="calibStatus">Not calibrated</span></div>
+            <div class="calib-row"><span>Baseline pitch</span><span class="val" id="calibPitch">--</span></div>
+            <div class="calib-row"><span>Baseline tilt</span><span class="val" id="calibTilt">--</span></div>
+            <div class="calib-row"><span>Shoulder span</span><span class="val" id="calibSpan">--</span></div>
+            <div class="calib-row"><span>Calibrated at</span><span class="val" id="calibWhen">never</span></div>
+            <div class="calib-quality">
+              <span>Quality</span>
+              <div class="bar"><span id="calibBar"></span></div>
+              <span id="calibQuality">--</span>
+            </div>
+            <button class="btn btn-sm" id="btnRecalibrate" type="button" disabled>
+              <i class="fa-solid fa-rotate"></i> Recalibrate
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <footer class="anx-foot">
+      <span class="privacy">
+        <i class="fa-solid fa-shield-halved"></i>
+        Local processing only · no frames stored, no biometric templates, no uploads
+      </span>
+      <span id="footStatus">Session not started</span>
+    </footer>
+
+    <div class="toast-stack" id="toastStack"></div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# ---------------------------------------------------------------------------
+# Anatonix — runtime dependencies
+# Install with:  python -m pip install -r requirements.txt
+# Python 3.10+ (64-bit) is required; Python 3.11–3.13 are tested.
+# ---------------------------------------------------------------------------
+
+# Web application framework and the bidirectional component bridge
+streamlit>=1.49,<2.0
+
+# Data handling used by analytics, aggregation and exports
+pandas>=2.0,<3.0
+numpy>=1.24,<3.0
+
+# PDF report generation (CSV export uses the standard library)
+reportlab>=4.0,<5.0
+matplotlib>=3.7,<4.0          # trend charts embedded in PDF reports
+
+# ---------------------------------------------------------------------------
+# Development / test dependencies (not required to run the app)
+# ---------------------------------------------------------------------------
+pytest>=7.4
