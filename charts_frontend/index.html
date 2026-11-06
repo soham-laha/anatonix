@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Anatonix analytics</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <style>
+    /* Palette mirrors config.THEMES; charts_app.js sets data-theme on <html>. */
+    :root {
+      --bg: #121110; --card: #1c1b19; --card-2: #211f1d; --surface: #262421;
+      --border: #2a2724; --border-strong: #3a352f;
+      --text: #eae7e1; --muted: #9c968c; --dim: #736e66;
+      --accent: #d9d3c4; --accent-soft: #2b2822;
+      --positive: #8fb99a; --warning: #cbab74; --critical: #c0756c;
+      --radius: 16px; --radius-sm: 11px;
+      --mono: "JetBrains Mono", monospace;
+      --body: "Inter", -apple-system, "Segoe UI", sans-serif;
+      --display: "Inter", -apple-system, "Segoe UI", sans-serif;
+    }
+    [data-theme="light"] {
+      --bg: #f4f6fb; --card: #ffffff; --card-2: #f7f9fd; --surface: #eef2fa;
+      --border: #e6ebf4; --border-strong: #d5deec;
+      --text: #131a24; --muted: #5f6b7d; --dim: #94a1b2;
+      --accent: #6259ca; --accent-soft: #efedfb;
+      --positive: #12a171; --warning: #d98a10; --critical: #d7514a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: transparent; color: var(--text);
+      font-family: var(--body); font-size: 13px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .toolbar {
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+      padding: 0 2px 14px; font-size: 11.5px; color: var(--muted);
+    }
+    .toolbar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .toolbar input { accent-color: var(--accent); }
+    .toolbar .spacer { flex: 1; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .panel {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+      padding: 16px 18px 10px;
+      min-width: 0;
+    }
+    .panel.wide { grid-column: 1 / -1; }
+    .panel h3 {
+      margin: 0 0 12px;
+      font-family: var(--display);
+      font-size: 13.5px; font-weight: 600; letter-spacing: -0.005em;
+      color: var(--text);
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .panel h3 span.note {
+      font-family: var(--mono);
+      font-size: 9.5px; font-weight: 400;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      color: var(--dim);
+    }
+    .canvas-wrap { position: relative; height: 172px; }
+    .canvas-wrap.tall { height: 210px; }
+    .canvas-wrap canvas { width: 100% !important; height: 100% !important; }
+    .empty {
+      position: absolute; inset: 0; display: none; place-items: center; text-align: center;
+      color: var(--dim); font-size: 12px; padding: 0 18px; line-height: 1.5;
+    }
+    .empty.show { display: grid; }
+    .hidden { display: none !important; }
+    @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  </style>
+</head>
+<body>
+  <div class="toolbar" id="toolbar">
+    <label><input type="checkbox" data-toggle="lean" checked /> Forward lean</label>
+    <label><input type="checkbox" data-toggle="tilt" checked /> Shoulder tilt</label>
+    <label><input type="checkbox" data-toggle="ear" checked /> EAR</label>
+    <label><input type="checkbox" data-toggle="bpm" checked /> Blink rate</label>
+    <span class="spacer"></span>
+    <label><input type="checkbox" data-toggle="consistency" checked /> Consistency</label>
+    <label><input type="checkbox" data-toggle="durations" checked /> Durations</label>
+  </div>
+
+  <div class="grid">
+    <div class="panel" data-panel="lean">
+      <h3>Forward lean over time <span class="note" id="leanNote"></span></h3>
+      <div class="canvas-wrap"><canvas id="leanChart"></canvas><div class="empty" id="leanEmpty">No posture samples in this range.</div></div>
+    </div>
+    <div class="panel" data-panel="tilt">
+      <h3>Shoulder tilt over time <span class="note" id="tiltNote"></span></h3>
+      <div class="canvas-wrap"><canvas id="tiltChart"></canvas><div class="empty" id="tiltEmpty">No posture samples in this range.</div></div>
+    </div>
+    <div class="panel" data-panel="ear">
+      <h3>Eye aspect ratio <span class="note" id="earNote"></span></h3>
+      <div class="canvas-wrap"><canvas id="earChart"></canvas><div class="empty" id="earEmpty">No ocular samples in this range.</div></div>
+    </div>
+    <div class="panel" data-panel="bpm">
+      <h3>Blink rate trend <span class="note" id="bpmNote"></span></h3>
+      <div class="canvas-wrap"><canvas id="bpmChart"></canvas><div class="empty" id="bpmEmpty">No blink-rate samples in this range.</div></div>
+    </div>
+    <div class="panel" data-panel="distribution">
+      <h3>Posture status distribution</h3>
+      <div class="canvas-wrap"><canvas id="statusChart"></canvas><div class="empty" id="statusEmpty">No classified samples yet.</div></div>
+    </div>
+    <div class="panel" data-panel="durations">
+      <h3>Session duration history <span class="note">minutes</span></h3>
+      <div class="canvas-wrap"><canvas id="durationChart"></canvas><div class="empty" id="durationEmpty">No completed sessions in this range.</div></div>
+    </div>
+    <div class="panel wide" data-panel="consistency">
+      <h3>Daily monitoring consistency <span class="note">minutes monitored per day</span></h3>
+      <div class="canvas-wrap tall"><canvas id="consistencyChart"></canvas><div class="empty" id="consistencyEmpty">No daily history in this range.</div></div>
+    </div>
+  </div>
+
+  <script src="./chart.umd.min.js"></script>
+  <script type="module" src="./charts_app.js"></script>
+</body>
+</html>
